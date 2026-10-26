@@ -1,0 +1,215 @@
+{
+  "info": {
+    "_postman_id": "ef81dc51-f18a-4d93-8092-8cebf57f6076",
+    "name": "PC Komplektatorius API",
+    "description": "Visi autentifikacijos, 15 bazinių CRUD/LIST, susiejimo, hierarchijos ir suvestinės metodai. Pasirinkite PC Builder Local aplinką. Demo slaptažodis: Password1.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "event": [{
+    "listen": "test",
+    "script": { "exec": [
+      "pm.test('Serveris negrąžino 500', function () { pm.expect(pm.response.code).to.be.below(500); });"
+    ], "type": "text/javascript" }
+  }],
+  "item": [
+    {
+      "name": "1. Autentifikacija",
+      "item": [
+        {
+          "name": "Registracija (MEMBER)",
+          "auth": { "type": "noauth" },
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"naujas{{$timestamp}}@example.lt\",\n  \"password\": \"Password1\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/auth/register"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["if (pm.response.code === 201) pm.environment.set('accessToken', pm.response.json().accessToken);"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "Login MEMBER",
+          "auth": { "type": "noauth" },
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"narys@example.lt\",\n  \"password\": \"Password1\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/auth/login"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Login 200', () => pm.response.to.have.status(200));", "pm.environment.set('accessToken', pm.response.json().accessToken);"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "Login EDITOR",
+          "auth": { "type": "noauth" },
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"redaktorius@example.lt\",\n  \"password\": \"Password1\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/auth/login"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.environment.set('accessToken', pm.response.json().accessToken);"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "Login ADMIN",
+          "auth": { "type": "noauth" },
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@example.lt\",\n  \"password\": \"Password1\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/auth/login"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.environment.set('accessToken', pm.response.json().accessToken);"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "Refresh token",
+          "auth": { "type": "noauth" },
+          "request": { "method": "POST", "header": [{ "key": "Origin", "value": "http://localhost:5173" }], "url": "{{baseUrl}}/auth/refresh" },
+          "event": [{ "listen": "test", "script": { "exec": ["if (pm.response.code === 200) pm.environment.set('accessToken', pm.response.json().accessToken);"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "Dabartinis naudotojas",
+          "request": { "method": "GET", "url": "{{baseUrl}}/auth/me" }
+        },
+        {
+          "name": "Logout",
+          "auth": { "type": "noauth" },
+          "request": { "method": "POST", "header": [{ "key": "Origin", "value": "http://localhost:5173" }], "url": "{{baseUrl}}/auth/logout" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Logout 204', () => pm.response.to.have.status(204));"], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "2. Komplektacijos (5 CRUD/LIST + hierarchija)",
+      "item": [
+        {
+          "name": "LIST viešos komplektacijos",
+          "auth": { "type": "noauth" },
+          "request": { "method": "GET", "url": "{{baseUrl}}/configurations?page=0&size=20&sort=updatedAt,desc&q=&usageType=GAMING" }
+        },
+        {
+          "name": "GET viena komplektacija",
+          "auth": { "type": "noauth" },
+          "request": { "method": "GET", "url": "{{baseUrl}}/configurations/{{configurationId}}" }
+        },
+        {
+          "name": "POST sukurti komplektaciją",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Postman komplektacija\",\n  \"description\": \"Laikinas CRUD bandymo objektas\",\n  \"budgetEur\": 1500,\n  \"usageType\": \"GAMING\",\n  \"visibility\": \"PRIVATE\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/configurations"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["if (pm.response.code === 201) pm.environment.set('newConfigurationId', pm.response.json().id);"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "PUT atnaujinti komplektaciją",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Atnaujinta Postman komplektacija\",\n  \"description\": \"Atnaujintas CRUD bandymo objektas\",\n  \"budgetEur\": 1600,\n  \"usageType\": \"WORKSTATION\",\n  \"visibility\": \"PRIVATE\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/configurations/{{newConfigurationId}}"
+          }
+        },
+        {
+          "name": "PUT pridėti komponentą",
+          "request": { "method": "PUT", "url": "{{baseUrl}}/configurations/{{newConfigurationId}}/components/{{componentId}}" }
+        },
+        {
+          "name": "GET hierarchiniai pasiūlymai (3 objektai)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/configurations/{{newConfigurationId}}/components/{{componentId}}/offers" }
+        },
+        {
+          "name": "GET komplektacijos suvestinė",
+          "request": { "method": "GET", "url": "{{baseUrl}}/configurations/{{newConfigurationId}}/summary" }
+        },
+        {
+          "name": "DELETE pašalinti komponentą",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/configurations/{{newConfigurationId}}/components/{{componentId}}" }
+        },
+        {
+          "name": "DELETE komplektacija",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/configurations/{{newConfigurationId}}" }
+        }
+      ]
+    },
+    {
+      "name": "3. Komponentai (5 CRUD/LIST)",
+      "item": [
+        {
+          "name": "LIST komponentai su filtrais",
+          "auth": { "type": "noauth" },
+          "request": { "method": "GET", "url": "{{baseUrl}}/components?page=0&size=20&sort=name,asc&q=Ryzen&category=CPU&minPowerWatts=1&maxPowerWatts=200" }
+        },
+        {
+          "name": "GET vienas komponentas",
+          "auth": { "type": "noauth" },
+          "request": { "method": "GET", "url": "{{baseUrl}}/components/{{componentId}}" }
+        },
+        {
+          "name": "POST sukurti komponentą (EDITOR+)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Postman procesorius\",\n  \"category\": \"CPU\",\n  \"manufacturer\": \"Demo Manufacturer\",\n  \"model\": \"Postman {{$timestamp}}\",\n  \"description\": \"Laikinas CRUD bandymo komponentas\",\n  \"powerWatts\": 95\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/components"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["if (pm.response.code === 201) pm.environment.set('newComponentId', pm.response.json().id);"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "PUT atnaujinti komponentą",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Atnaujintas Postman procesorius\",\n  \"category\": \"CPU\",\n  \"manufacturer\": \"Demo Manufacturer\",\n  \"model\": \"Postman Updated {{$timestamp}}\",\n  \"description\": \"Atnaujintas CRUD bandymo komponentas\",\n  \"powerWatts\": 105\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/components/{{newComponentId}}"
+          }
+        },
+        {
+          "name": "DELETE komponentas",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/components/{{newComponentId}}" }
+        }
+      ]
+    },
+    {
+      "name": "4. Pasiūlymai (5 CRUD/LIST)",
+      "item": [
+        {
+          "name": "LIST komponento pasiūlymai",
+          "auth": { "type": "noauth" },
+          "request": { "method": "GET", "url": "{{baseUrl}}/components/{{componentId}}/offers?page=0&size=20&sort=priceEur,asc&supplier=Demo&stockStatus=IN_STOCK&minPrice=1&maxPrice=1000" }
+        },
+        {
+          "name": "GET vienas pasiūlymas",
+          "auth": { "type": "noauth" },
+          "request": { "method": "GET", "url": "{{baseUrl}}/offers/{{offerId}}" }
+        },
+        {
+          "name": "POST sukurti pasiūlymą (EDITOR+)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"supplierName\": \"Postman Tiekėjas {{$timestamp}}\",\n  \"priceEur\": 299.99,\n  \"productUrl\": \"https://example.invalid/postman-offer\",\n  \"stockStatus\": \"IN_STOCK\",\n  \"checkedAt\": \"2026-09-07T10:00:00Z\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/components/{{componentId}}/offers"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["if (pm.response.code === 201) pm.environment.set('newOfferId', pm.response.json().id);"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "PUT atnaujinti pasiūlymą",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"supplierName\": \"Postman Tiekėjas Updated {{$timestamp}}\",\n  \"priceEur\": 289.99,\n  \"productUrl\": \"https://example.invalid/postman-offer-updated\",\n  \"stockStatus\": \"LOW_STOCK\",\n  \"checkedAt\": \"2026-09-07T11:00:00Z\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/offers/{{newOfferId}}"
+          }
+        },
+        {
+          "name": "DELETE pasiūlymas",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/offers/{{newOfferId}}" }
+        }
+      ]
+    }
+  ]
+}

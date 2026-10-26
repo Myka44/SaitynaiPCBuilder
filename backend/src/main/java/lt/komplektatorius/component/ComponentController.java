@@ -6,6 +6,8 @@ import jakarta.validation.Valid;
 import java.net.URI;
 import java.time.Duration;
 import java.util.UUID;
+import java.math.BigDecimal;
+import java.util.List;
 import lt.komplektatorius.component.dto.ComponentRequest;
 import lt.komplektatorius.component.dto.ComponentResponse;
 import org.springframework.data.domain.Pageable;
@@ -44,12 +46,19 @@ public class ComponentController {
             @RequestParam(required = false) String manufacturer,
             @RequestParam(required = false) Integer minPowerWatts,
             @RequestParam(required = false) Integer maxPowerWatts,
+            @RequestParam(required = false) String supplier,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
             @PageableDefault(size = 20, sort = "name") Pageable pageable,
             PagedResourcesAssembler<ComponentResponse> assembler) {
         var model = assembler.toModel(service.list(q, category, manufacturer, minPowerWatts, maxPowerWatts,
-                pageable), this::model);
+                supplier, minPrice, maxPrice, pageable), this::model);
         return ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofSeconds(60)).cachePublic()).body(model);
     }
+
+    @Operation(summary = "Gauti katalogo pardavėjų sąrašą")
+    @GetMapping("/suppliers")
+    List<String> suppliers() { return service.suppliers(); }
 
     @Operation(summary = "Gauti vieną komponentą")
     @GetMapping("/{id}")

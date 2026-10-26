@@ -127,7 +127,12 @@ public class ConfigurationService {
             List<Offer> available = offers.findByComponentIdAndStockStatusInOrderByPriceEurAsc(component.getId(),
                     List.of(StockStatus.IN_STOCK, StockStatus.LOW_STOCK));
             OfferResponse cheapest = available.isEmpty() ? null : offerService.toResponse(available.getFirst());
-            if (cheapest == null) missing++; else total = total.add(cheapest.priceEur());
+            if (cheapest == null) {
+                missing++;
+            }
+            else {
+                total = total.add(cheapest.priceEur());
+            }
             ComponentResponse componentResponse = componentService.toResponse(component);
             rows.add(new ConfigurationSummaryResponse.SummaryComponent(componentResponse, cheapest));
         }

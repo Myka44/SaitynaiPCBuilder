@@ -14,6 +14,7 @@ public record ComponentRequest(
         @Schema(example = "AMD") @NotBlank @Size(max = 80) String manufacturer,
         @Schema(example = "Ryzen 7 7700") @NotBlank @Size(max = 100) String model,
         @Schema(example = "8 branduolių procesorius žaidimams ir produktyvumui.")
-        @NotBlank @Size(max = 1000) String description,
+        @NotBlank(message = "Įveskite aprašymą.")
+        @Size(max = 1000, message = "Aprašymas negali viršyti 1000 simbolių.") String description,
         @Schema(example = "65", nullable = true) @Min(0) @Max(2000) Integer powerWatts) {
 }

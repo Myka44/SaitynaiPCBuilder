@@ -9,6 +9,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,7 +41,8 @@ class PcBuilderApiIntegrationTest {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("app.jwt.secret", () -> "integration-test-secret-key-at-least-32-bytes");
+        registry.add("app.jwt.secret", () -> Base64.getEncoder().encodeToString(
+                "integration-test-secret-key-at-least-32-bytes".getBytes(StandardCharsets.UTF_8)));
         registry.add("app.allowed-origin", () -> "http://localhost:5173");
         registry.add("app.cookie.secure", () -> false);
     }
@@ -53,6 +56,61 @@ class PcBuilderApiIntegrationTest {
     void clientWithCookies() {
         CookieManager cookies = new CookieManager(null, CookiePolicy.ACCEPT_ALL);
         client = HttpClient.newBuilder().cookieHandler(cookies).connectTimeout(Duration.ofSeconds(5)).build();
+    }
+
+    @Test
+    void bundledReactPagesAndAssetsAreServedWithoutOpeningProtectedApi() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                new org.springframework.core.io.ClassPathResource("static/index.html").exists(),
+                "React resources are included by the azure Maven profile after the frontend build.");
+        HttpResponse<String> home = get("/", null);
+        assertThat(home.statusCode()).isEqualTo(200);
+        assertThat(home.headers().firstValue("content-type").orElse("")).contains("text/html");
+        assertThat(home.body()).contains("<div id=\"root\"></div>");
+        for (String path : java.util.List.of("/catalog", "/login", "/register", "/app/configurations",
+                "/catalog/example", "/app/configurations/example/edit", "/admin/configurations")) {
+            HttpResponse<String> page = get(path, null);
+            assertThat(page.statusCode()).as(path).isEqualTo(200);
+            assertThat(page.body()).as(path).isEqualTo(home.body());
+        }
+        Matcher asset = Pattern.compile("src=\"([^\"]+\\.js)\"").matcher(home.body());
+        assertThat(asset.find()).isTrue();
+        assertThat(get(asset.group(1), null).statusCode()).isEqualTo(200);
+        assertThat(get("/assets/missing.js", null).statusCode()).isEqualTo(404);
+        assertThat(get("/api/v1/auth/me", null).statusCode()).isEqualTo(401);
+    }
+
+    @Test
+    void catalogPricesAndSuppliersAreFilteredBeforePagination() throws Exception {
+        String matching = get("/api/v1/components?category=CPU&supplier=TechTurgus%20Demo&minPrice=320&maxPrice=340", null).body();
+        assertThat(matching).contains("\"totalElements\":1", "Ryzen 7", "\"priceEur\":329.50", "\"offerCount\":1");
+        assertThat(get("/api/v1/components?category=CPU&supplier=TechTurgus%20Demo&maxPrice=320", null).body())
+                .contains("\"totalElements\":0");
+        assertThat(get("/api/v1/components?category=GPU&supplier=TechTurgus%20Demo&maxPrice=600", null).body())
+                .contains("\"totalElements\":0");
+        assertThat(get("/api/v1/components?supplier=TechTurgus%20Demo&size=1", null).body())
+                .contains("\"totalElements\":6", "\"totalPages\":6", "\"next\"");
+        assertThat(get("/api/v1/components/suppliers", null).body())
+                .contains("BalticPC Demo", "TechTurgus Demo", "Kompiuteka Demo");
+        assertThat(get("/api/v1/components?minPrice=200&maxPrice=100", null).statusCode()).isEqualTo(400);
+        assertThat(get("/api/v1/components?minPrice=-1", null).statusCode()).isEqualTo(400);
+    }
+
+    @Test
+    void longDescriptionsReturnFieldErrorsForBothResources() throws Exception {
+        String editor = accessToken(post("/api/v1/auth/login",
+                "{\"email\":\"redaktorius@example.lt\",\"password\":\"Password1\"}", null, null).body());
+        String description = "a".repeat(1001);
+        HttpResponse<String> component = post("/api/v1/components",
+                "{\"name\":\"Valid component\",\"category\":\"CPU\",\"manufacturer\":\"AMD\",\"model\":\"Test\",\"description\":\""
+                        + description + "\"}", editor, null);
+        HttpResponse<String> configuration = post("/api/v1/configurations",
+                "{\"name\":\"Valid configuration\",\"budgetEur\":1200,\"usageType\":\"GAMING\",\"visibility\":\"PRIVATE\",\"description\":\""
+                        + description + "\"}", editor, null);
+        for (HttpResponse<String> response : java.util.List.of(component, configuration)) {
+            assertThat(response.statusCode()).isEqualTo(400);
+            assertThat(response.body()).contains("\"errors\"", "\"description\"", "1000 simbolių");
+        }
     }
 
     @Test

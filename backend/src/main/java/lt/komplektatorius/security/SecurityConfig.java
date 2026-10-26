@@ -2,7 +2,7 @@ package lt.komplektatorius.security;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.nimbusds.jose.proc.SecurityContext;
-import java.nio.charset.StandardCharsets;
+import jakarta.servlet.DispatcherType;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
@@ -34,6 +34,8 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -45,11 +47,20 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationConverter converter,
                                             OriginValidationFilter originValidationFilter) throws Exception {
+        AuthenticationEntryPoint unauthorized = (request, response, exception) -> SecurityProblemWriter.write(
+                request, response, 401, "Reikia prisijungti", "Pateikite galiojantį access tokeną.");
+        AccessDeniedHandler forbidden = (request, response, exception) -> SecurityProblemWriter.write(
+                request, response, 403, "Veiksmas neleidžiamas", "Šiam veiksmui nepakanka teisių.");
         return http
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> {})
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                        .requestMatchers(HttpMethod.GET, "/", "/index.html", "/assets/**", "/images/**",
+                                "/favicon.ico", "/login", "/register", "/forbidden", "/catalog", "/catalog/*",
+                                "/configurations/*", "/app/configurations", "/app/configurations/*/edit",
+                                "/admin/configurations").permitAll()
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**",
                                 "/actuator/health", "/api/v1/auth/register", "/api/v1/auth/login",
                                 "/api/v1/auth/refresh", "/api/v1/auth/logout").permitAll()
@@ -57,15 +68,11 @@ public class SecurityConfig {
                                 "/api/v1/offers/**").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(errors -> errors
-                        .authenticationEntryPoint((request, response, exception) -> SecurityProblemWriter.write(
-                                request, response, 401, "Reikia prisijungti", "Pateikite galiojantį access tokeną."))
-                        .accessDeniedHandler((request, response, exception) -> SecurityProblemWriter.write(
-                                request, response, 403, "Veiksmas neleidžiamas", "Šiam veiksmui nepakanka teisių.")))
+                        .authenticationEntryPoint(unauthorized)
+                        .accessDeniedHandler(forbidden))
                 .oauth2ResourceServer(oauth -> oauth
-                        .authenticationEntryPoint((request, response, exception) -> SecurityProblemWriter.write(
-                                request, response, 401, "Reikia prisijungti", "Access tokenas negalioja arba baigėsi."))
-                        .accessDeniedHandler((request, response, exception) -> SecurityProblemWriter.write(
-                                request, response, 403, "Veiksmas neleidžiamas", "Šiam veiksmui nepakanka teisių."))
+                        .authenticationEntryPoint(unauthorized)
+                        .accessDeniedHandler(forbidden)
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(converter)))
                 .addFilterBefore(originValidationFilter, CorsFilter.class)
                 .build();
@@ -90,7 +97,7 @@ public class SecurityConfig {
         try {
             decoded = Base64.getDecoder().decode(properties.secret());
         } catch (IllegalArgumentException ex) {
-            decoded = properties.secret().getBytes(StandardCharsets.UTF_8);
+            throw new IllegalStateException("JWT_SECRET turi būti Base64 užkoduota paslaptis.");
         }
         if (decoded.length < 32) {
             throw new IllegalStateException("JWT_SECRET turi būti bent 32 baitų.");
@@ -121,7 +128,9 @@ public class SecurityConfig {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter(jwt -> {
             String role = jwt.getClaimAsString("role");
-            if (role == null) return List.of();
+            if (role == null) {
+                return List.of();
+            }
             Collection<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
             return authorities;
         });

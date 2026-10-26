@@ -1,10 +1,13 @@
 package lt.komplektatorius.component;
 
 import jakarta.persistence.criteria.Predicate;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import org.springframework.data.jpa.domain.Specification;
+import lt.komplektatorius.offer.Offer;
+import lt.komplektatorius.offer.StockStatus;
 
 public final class ComponentSpecifications {
     private ComponentSpecifications() {}
@@ -34,6 +37,26 @@ public final class ComponentSpecifications {
                 predicates.add(cb.lessThanOrEqualTo(root.get("powerWatts"), maxPowerWatts));
             }
             return cb.and(predicates.toArray(Predicate[]::new));
+        };
+    }
+
+    public static Specification<Component> withOffer(String supplier, BigDecimal minPrice, BigDecimal maxPrice) {
+        return (root, query, cb) -> {
+            if ((supplier == null || supplier.isBlank()) && minPrice == null && maxPrice == null) {
+                return cb.conjunction();
+            }
+            var offers = query.subquery(Integer.class);
+            var offer = offers.from(Offer.class);
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(offer.get("component"), root));
+            predicates.add(cb.notEqual(offer.get("stockStatus"), StockStatus.OUT_OF_STOCK));
+            if (supplier != null && !supplier.isBlank()) {
+                predicates.add(cb.equal(cb.lower(offer.get("supplierName")), supplier.trim().toLowerCase(Locale.ROOT)));
+            }
+            if (minPrice != null) predicates.add(cb.greaterThanOrEqualTo(offer.get("priceEur"), minPrice));
+            if (maxPrice != null) predicates.add(cb.lessThanOrEqualTo(offer.get("priceEur"), maxPrice));
+            offers.select(cb.literal(1)).where(predicates.toArray(Predicate[]::new));
+            return cb.exists(offers);
         };
     }
 }
